@@ -5,6 +5,11 @@
 
 const tintColorLight = '#0a7ea4';
 const tintColorDark = '#fff';
+// #e3f0fb
+export const ORB_HUE = '#cfe4e3'; // revert to previous orb color
+export const ORB_HUE_DARK = '#4a90e2'; // keep accent blue
+export const BUTTON_BG = '#f8fafc'; // revert to previous button background
+export const BUTTON_BG_ACTIVE = '#cfe4e3'; // revert to previous active button color
 
 export const Colors = {
   light: {

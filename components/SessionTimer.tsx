@@ -1,7 +1,9 @@
 import { Audio } from 'expo-av';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
+import { Animated, AppState, Easing, Platform, StyleSheet, Text, TouchableOpacity, Vibration, View } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 import { usePreferences } from './PreferencesContext';
 
 // Define constants outside the component
@@ -92,16 +94,16 @@ function SessionTimer({
   const [contentOpacity] = useState(new Animated.Value(1)); // Controls text/button visibility
   // Replace backgroundFade and finalFadeToWhite with a single Animated.Value for background phase
   const [backgroundPhase] = useState(new Animated.Value(0)); // 0: white, 1: black, 2: white
-  const [progressBarColor] = useState(new Animated.Value(0)); // 0 = black, 1 = white
+  //const [progressBarColor] = useState(new Animated.Value(0)); // 0 = black, 1 = white
   const [completionTextOpacity] = useState(new Animated.Value(0)); // Completion text visibility
   
   const fontFamily = Platform.select({
     ios: 'Quicksand',
-    android: 'sans-serif-thin',
-    default: 'System',
+    android: 'Poppins-Light',
+    default: 'Poppins-Light',
   });
 
-  const { showMotivation } = usePreferences ? usePreferences() : { showMotivation: true };
+  const { showMotivation, vibrate } = usePreferences ? usePreferences() : { showMotivation: true, vibrate: false };
   // Motivational message state
   const [motivationalMsg, setMotivationalMsg] = useState('');
   const [motivationalOpacity] = useState(new Animated.Value(0));
@@ -145,13 +147,13 @@ function SessionTimer({
         motivationalTimerRef.current = setTimeout(() => {
           step = 1;
           runStep();
-        }, 5000);
+        }, 5000) as unknown as NodeJS.Timeout;
       } else if (step === 1) {
         // Stay visible
         motivationalTimerRef.current = setTimeout(() => {
           step = 2;
           runStep();
-        }, 10000);
+        }, 10000) as unknown as NodeJS.Timeout;
       } else if (step === 2) {
         // Fade out
         Animated.timing(motivationalOpacity, {
@@ -162,7 +164,7 @@ function SessionTimer({
         motivationalTimerRef.current = setTimeout(() => {
           step = 3;
           runStep();
-        }, 5000);
+        }, 5000) as unknown as NodeJS.Timeout;
       } else if (step === 3) {
         // Hidden, pick new quote after 10s
         motivationalTimerRef.current = setTimeout(() => {
@@ -170,7 +172,7 @@ function SessionTimer({
           quote = pickRandomQuote(quote);
           setMotivationalMsg(quote);
           runStep();
-        }, 10000);
+        }, 10000) as unknown as NodeJS.Timeout;
       }
     }
     runStep();
@@ -265,29 +267,66 @@ function SessionTimer({
 
   // Main completion sequence
   const startCompletionSequence = async (sound: keyof typeof COMMON_SOUNDS) => {
-    let fadeToWhiteTimeout: number = 2200 + 800 + 2200 + 3000; // fallback: total animation time before fade to white, plus 3s hold
+    let fadeToWhiteTimeout: number = 5000; // fallback: total animation time before fade to white, plus 3s hold
     let soundObj: Audio.Sound | null = null;
-    let fadeOutDuration = 1000; // 1s fade out
+    let fadeOutDuration = 3000; // 3s fade out
     if (sound !== 'None') {
       try {
         soundObj = new Audio.Sound();
         await soundObj.loadAsync(COMMON_SOUNDS[sound] || COMMON_SOUNDS['Bell']);
         const status = await soundObj.getStatusAsync();
         if (status.isLoaded && status.durationMillis) {
-          // Play sound immediately
-          await soundObj.setVolumeAsync(1);
+          // Play sound with fade-in
+          await soundObj.setVolumeAsync(0);
           await soundObj.playAsync();
+          // Fade in
+          let currentVolume = 0;
+          const fadeStep = 0.1;
+          const fadeInDuration = 1000;
+          const fadeInInterval = setInterval(async () => {
+            currentVolume += fadeStep;
+            if (currentVolume > 1) currentVolume = 1;
+            try {
+              const s = await soundObj!.getStatusAsync();
+              if (s.isLoaded) {
+                await soundObj!.setVolumeAsync(currentVolume);
+              }
+            } catch {}
+            if (currentVolume >= 1) {
+              clearInterval(fadeInInterval);
+            }
+          }, fadeInDuration / (1 / fadeStep));
           // Calculate when to start fade to white: (duration - 2000ms)
           fadeToWhiteTimeout = Math.max(0, status.durationMillis - 2000);
-          fadeToWhiteTimeout += 3000;
+          fadeToWhiteTimeout = 3000;
         } else {
-          // Play sound anyway
-          await soundObj.setVolumeAsync(1);
+          // Play sound anyway with fade-in
+          await soundObj.setVolumeAsync(0);
           await soundObj.playAsync();
-          fadeToWhiteTimeout = 2000;
-          fadeToWhiteTimeout += 3000;
+          // Fade in
+          let currentVolume = 0;
+          const fadeStep = 0.1;
+          const fadeInDuration = 1000;
+          const fadeInInterval = setInterval(async () => {
+            currentVolume += fadeStep;
+            if (currentVolume > 1) currentVolume = 1;
+            try {
+              const s = await soundObj!.getStatusAsync();
+              if (s.isLoaded) {
+                await soundObj!.setVolumeAsync(currentVolume);
+              }
+            } catch {}
+            if (currentVolume >= 1) {
+              clearInterval(fadeInInterval);
+            }
+          }, fadeInDuration / (1 / fadeStep));
+          fadeToWhiteTimeout = 3000
         }
       } catch (e) {
+        console.log('Audio error:', e);
+        if (Platform.OS === 'android') {
+          alert('Audio error: ' + (e?.message || e));
+        }
         soundObj = null;
         fadeToWhiteTimeout = 2000;
         fadeToWhiteTimeout += 3000;
@@ -296,7 +335,9 @@ function SessionTimer({
       fadeToWhiteTimeout = 1000;
       fadeToWhiteTimeout += 3000;
     }
-
+    if (vibrate) {
+      Vibration.vibrate(1000);
+    }
     // Start content fade out
     Animated.timing(contentOpacity, {
       toValue: 0,
@@ -306,11 +347,6 @@ function SessionTimer({
       // Fade background to black and progress bar color to white in parallel
       Animated.parallel([
         Animated.timing(backgroundPhase, {
-          toValue: 1,
-          duration: 2200,
-          useNativeDriver: false,
-        }),
-        Animated.timing(progressBarColor, {
           toValue: 1,
           duration: 2200,
           useNativeDriver: false,
@@ -354,8 +390,9 @@ function SessionTimer({
                 }
               }, fadeOutDuration / (1 / fadeStep));
             }
+            
             finalFadeAndReset(fadeOutDuration);
-          }, fadeToWhiteTimeout);
+          }, fadeToWhiteTimeout) as unknown as NodeJS.Timeout;
         });
       });
     });
@@ -368,12 +405,7 @@ function SessionTimer({
         toValue: 2,
         duration: fadeDuration,
         useNativeDriver: false,
-      }),
-      Animated.timing(progressBarColor, {
-        toValue: 1,
-        duration: fadeDuration,
-        useNativeDriver: false,
-      }),
+      })
     ]).start(() => {
       // Reset all states
       resetToInitialState();
@@ -399,7 +431,6 @@ function SessionTimer({
     setTimeLeft((newDuration ?? duration) * 60);
     progressValue.setValue(0);
     backgroundPhase.setValue(0);
-    progressBarColor.setValue(0);
     completionTextOpacity.setValue(0);
   };
 
@@ -444,10 +475,6 @@ function SessionTimer({
     outputRange: ['#ffffff', '#111216', '#ffffff'],
   });
 
-  const progressStroke = progressBarColor.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['#222222', '#ffffff'],
-  });
 
   const progressDashOffset = progressValue.interpolate({
     inputRange: [0, 1],
@@ -456,8 +483,24 @@ function SessionTimer({
 
   const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
+  useEffect(() => {
+    // Log app state changes
+    const sub = AppState.addEventListener('change', (state) => {
+      console.log('AppState:', state);
+    });
+    // Set audio mode at startup
+    Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
+      allowsRecordingIOS: false,
+    });
+    return () => sub.remove();
+  }, []);
+
   return (
-    <Animated.View style={[styles.wrapper, { backgroundColor }]}>
+    <Animated.View style={[styles.wrapper, backgroundColor]}>
       {/* Title */}
       <Animated.Text style={[styles.title, { fontFamily, opacity: contentOpacity }]}>
         Do nothing.
@@ -466,7 +509,6 @@ function SessionTimer({
       {/* Duration Selector */}
       {!isActive && timeLeft !== 0 && (
         <Animated.View style={[styles.durationRow, { opacity: contentOpacity }]}>
-          <Text style={[styles.durationLabel, { fontFamily }]}>Duration:</Text>
           <View style={styles.durationOptions}>
             {DURATION_OPTIONS.map((opt) => (
               <TouchableOpacity
@@ -493,44 +535,81 @@ function SessionTimer({
       {/* Timer Display with pulsing orb */}
       <View style={styles.timerDisplayWrapper}>
         {/* Orb */}
-        {Platform.OS === 'web' ? (
+        {Platform.OS === 'ios' ? (
           <Animated.View
             style={[
               styles.pulseOrb,
               {
                 transform: [{ scale: pulseAnim }],
-                filter: 'blur(17px)',
-                backgroundColor: ORB_HUE,
                 opacity: contentOpacity,
               },
             ]}
-          />
-        ) : (
-          <Animated.View style={[styles.pulseOrb, { transform: [{ scale: pulseAnim }], opacity: contentOpacity }]}>
-            <Svg width={180} height={180} style={{ position: 'absolute', top: 0, left: 0 }}>
-              <Defs>
-                <RadialGradient id="orbGradient" cx="50%" cy="50%" r="50%">
-                  <Stop offset="0%" stopColor="#f8fafc" stopOpacity="0.9" />
-                  <Stop offset="100%" stopColor="#e0e7ef" stopOpacity="0.3" />
-                </RadialGradient>
-              </Defs>
-              <Circle cx={90} cy={90} r={90} fill="url(#orbGradient)" />
-            </Svg>
-            <Animated.View
+          >
+            <BlurView intensity={60} style={StyleSheet.absoluteFill} tint="light" />
+            <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: ORB_HUE, opacity: 0.18, borderRadius: 90 }} />
+          </Animated.View>
+        ) : Platform.OS === 'android' ? (
+          <Animated.View
+            style={[
+              styles.pulseOrb,
+              {
+                transform: [{ scale: pulseAnim }],
+                opacity: contentOpacity,
+              },
+            ]}
+          >
+            <LinearGradient
+              colors={['#f8fafc', '#e0e7ef']}
               style={{
-                ...StyleSheet.absoluteFillObject,
-                backgroundColor: ORB_HUE,
-                opacity: pulseAnim.interpolate({
-                  inputRange: [0.97, 1.25],
-                  outputRange: [0, 0.18],
-                  extrapolate: 'clamp',
-                }) * contentOpacity,
+                width: 180,
+                height: 180,
                 borderRadius: 90,
+                position: 'absolute',
+                top: 0,
+                left: 0,
               }}
+              start={{ x: 0.5, y: 0.5 }}
+              end={{ x: 1, y: 1 }}
             />
           </Animated.View>
+        ) : Platform.OS === 'web' ? (
+          <Animated.View
+            style={[
+              styles.pulseOrb,
+              {
+                transform: [{ scale: pulseAnim }],
+                opacity: contentOpacity,
+              },
+            ]}
+          >
+            <LinearGradient
+              colors={['#f8fafc', '#f8fafc', '#e0e7ef']}
+              style={{
+                width: 180,
+                height: 180,
+                borderRadius: 90,
+                position: 'absolute',
+                top: 0,
+                left: 0,
+              }}
+              start={{ x: 0.3, y: 0.3 }}
+              end={{ x: 1, y: 1 }}
+            />
+          </Animated.View>
+        ) : (
+          <Animated.View
+            style={[
+              styles.pulseOrb,
+              {
+                transform: [{ scale: pulseAnim }],
+                opacity: contentOpacity,
+              },
+            ]}
+          >
+            <BlurView intensity={60} style={StyleSheet.absoluteFill} tint="light" />
+            <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: ORB_HUE, opacity: 0.18, borderRadius: 90 }} />
+          </Animated.View>
         )}
-
         {/* Timer Text */}
         <View style={styles.timerDisplay}>
           <Animated.Text style={[styles.timerText, { fontFamily, opacity: contentOpacity }]}>
@@ -555,7 +634,7 @@ function SessionTimer({
                 cy={60} 
                 r={CIRCLE_RADIUS} 
                 fill="none" 
-                stroke={progressStroke} 
+                stroke='#222222'
                 strokeWidth={2} 
                 strokeLinecap="round" 
                 strokeDasharray={CIRCLE_CIRCUM} 
@@ -609,7 +688,9 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
+    padding: 0,
+    width: '100%',
+    backgroundColor: '#fff' // Remove or comment out any hardcoded background
   },
   title: {
     fontSize: 32,
@@ -631,7 +712,7 @@ const styles = StyleSheet.create({
   },
   durationOptions: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 4,
   },
   durationButton: {
     backgroundColor: '#fff',
@@ -646,7 +727,12 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   durationButtonActive: {
-    backgroundColor: ORB_HUE,
+    backgroundColor: '#e4ebf3',
+    shadowColor: '#b0bfc0',
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    shadowOffset: { width: -1, height: 3 },
+    elevation: 4
   },
   durationButtonText: {
     fontWeight: '400',
@@ -655,6 +741,7 @@ const styles = StyleSheet.create({
   },
   durationButtonTextActive: {
     color: '#222',
+    fontWeight: 'bold'
   },
   timerDisplayWrapper: {
     alignItems: 'center',
@@ -664,6 +751,7 @@ const styles = StyleSheet.create({
     height: 180,
     position: 'relative',
     marginTop: 40,
+    // backgroundColor: '#fff', // Remove or comment out any hardcoded background
   },
   pulseOrb: {
     position: 'absolute',
@@ -672,7 +760,7 @@ const styles = StyleSheet.create({
     width: 180,
     height: 180,
     borderRadius: 90,
-    backgroundColor: ORB_HUE,
+    ...(Platform.OS === 'android' ? {} : { backgroundColor: ORB_HUE }),
     zIndex: 0,
   },
   timerDisplay: {
@@ -714,13 +802,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     letterSpacing: 1.5,
     textAlign: 'center',
-    color: '#fff',
+    color: '#000',
   },
   completionText: {
     fontSize: 15,
     fontWeight: '300',
     textAlign: 'center',
-    color: '#fff',
+    color: '#222',
   },
   progressCircleWrapper: {
     position: 'absolute',
@@ -736,15 +824,15 @@ const styles = StyleSheet.create({
     marginVertical: 16,
   },
   startButton: {
-    backgroundColor: '#fff',
+    backgroundColor: '#f8fafc',
     borderRadius: 24,
     paddingHorizontal: 32,
     paddingVertical: 12,
     marginHorizontal: 4,
     shadowColor: '#b0bfc0',
-    shadowOpacity: 0.22,
+    shadowOpacity: 0.3,
     shadowRadius: 12,
-    shadowOffset: { width: 0, height: 3 },
+    shadowOffset: { width: -1, height: 3 },
     elevation: 4,
   },
   startButtonText: {

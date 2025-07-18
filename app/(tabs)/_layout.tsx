@@ -7,6 +7,9 @@ import { IconSymbol } from '@/components/ui/IconSymbol';
 import TabBarBackground from '@/components/ui/TabBarBackground';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import * as SystemUI from 'expo-system-ui';
+SystemUI.setBackgroundColorAsync('#fff');
+
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -22,6 +25,14 @@ export default function TabLayout() {
           ios: {
             // Use a transparent background on iOS to show the blur effect
             position: 'absolute',
+            backgroundColor: '#fff', // light background
+            borderTopColor: '#eee',  // subtle top border
+            // Optionally, add shadow for iOS:
+            shadowColor: '#b0bfc0',
+            shadowOpacity: 0.10,
+            shadowRadius: 6,
+            shadowOffset: { width: 0, height: -2 },
+            elevation: 8, // Android shadow
           },
           default: {},
         }),

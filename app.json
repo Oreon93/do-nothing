@@ -1,22 +1,30 @@
 {
   "expo": {
-    "name": "do-nothing-mobile",
+    "name": "Do Nothing",
     "slug": "do-nothing-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "donothingmobile",
+    "scheme": "myapp",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.donothing.app"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "package": "com.donothing.app"
     },
     "web": {
       "bundler": "metro",
@@ -25,18 +33,19 @@
     },
     "plugins": [
       "expo-router",
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
-        }
-      ]
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "developmentClient": {
+      "silenceLaunchWarnings": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "3afc5939-4d55-4249-9fc3-bacc3d6b4cc5"
+      }
     }
   }
 }

@@ -8,6 +8,8 @@ interface PreferencesContextType {
   setPlaySound: (b: boolean) => void;
   showMotivation: boolean;
   setShowMotivation: (b: boolean) => void;
+  vibrate: boolean;
+  setVibrate: (b: boolean) => void;
 }
 
 const PreferencesContext = createContext<PreferencesContextType | undefined>(undefined);
@@ -16,9 +18,10 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
   const [sound, setSound] = useState('Bell');
   const [playSound, setPlaySound] = useState(true);
   const [showMotivation, setShowMotivation] = useState(true);
+  const [vibrate, setVibrate] = useState(false);
 
   return (
-    <PreferencesContext.Provider value={{ sound, setSound, playSound, setPlaySound, showMotivation, setShowMotivation }}>
+    <PreferencesContext.Provider value={{ sound, setSound, playSound, setPlaySound, showMotivation, setShowMotivation, vibrate, setVibrate }}>
       {children}
     </PreferencesContext.Provider>
   );
